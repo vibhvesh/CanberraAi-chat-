@@ -58,7 +58,7 @@ class Sentinel:
     def __init__(self,server,token,paths):
         self.server=server;self.token=token;self.host=socket.gethostname()
         self.events=deque(maxlen=2000);self.observer=Observer();self.paths=paths
-        self.last_process={};self.process_baseline=False;self.last_connections=set();self.log_offsets={}
+        self.last_process={};self.process_baseline=False;self.last_connections=set();self.log_offsets={};self.last_heartbeat=0
     def emit(self,event):
         event.update({"ts":time.time(),"host":self.host});self.events.append(event)
     def start_watches(self):
@@ -129,9 +129,12 @@ class Sentinel:
         self.start_watches()
         while True:
             self.scan_processes();self.scan_connections();self.scan_packages()
-            self.emit({"category":"SYSTEM","label":"HOST_HEARTBEAT","severity":"info",
-                "summary":"Monitoring agent active","details":{"platform":platform.platform(),
-                "agent":"CanberraAI Sentinel","watched_paths":self.paths}})
+            now=time.time()
+            if now-self.last_heartbeat>=60:
+                self.emit({"category":"SYSTEM","label":"HOST_HEARTBEAT","severity":"info",
+                    "summary":"Monitoring agent active","details":{"platform":platform.platform(),
+                    "agent":"CanberraAI Sentinel","watched_paths":self.paths}})
+                self.last_heartbeat=now
             batch=[]
             while self.events and len(batch)<100:batch.append(self.events.popleft())
             if batch:
