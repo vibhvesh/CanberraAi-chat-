@@ -2,12 +2,13 @@ import asyncio
 import hmac
 import os
 import secrets
+import time
 from pathlib import Path
 
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile, WebSocket, WebSocketDisconnect, Query
 from fastapi.responses import HTMLResponse, FileResponse
 from server.sentinel import ingest as ingest_sentinel, query_events, stats as sentinel_stats
-from server import transfers
+from server import transfers, chat
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / "web"
@@ -19,6 +20,7 @@ SENTINEL_AGENT_TOKEN = os.getenv("SENTINEL_AGENT_TOKEN", TOKEN)
 MAX_UPLOAD = int(os.getenv("CBRIDGE_MAX_UPLOAD", str(100 * 1024 * 1024)))
 app = FastAPI(title="CanberraAI Chat + Sentinel", version="0.2.0")
 clients = set()
+chat_clients = {}
 latest = {"type": "clipboard", "text": "", "source": "server"}
 
 def authorize(value):
@@ -143,6 +145,19 @@ async def transfer_delete(transfer_id: str, authorization: str | None = Header(d
     authorize(authorization)
     return {"deleted": transfers.remove(transfer_id)}
 
+@app.post("/api/chat/pair")
+async def chat_pair(payload: dict):
+    try:
+        return chat.pair(payload.get("name","Linux device"),payload.get("password",""))
+    except PermissionError:
+        raise HTTPException(status_code=403,detail="Incorrect pairing password")
+
+@app.get("/api/chat/devices")
+async def chat_devices(authorization: str | None = Header(default=None)):
+    device=chat.authenticate((authorization or "").removeprefix("Bearer ").strip())
+    if not device: raise HTTPException(status_code=401,detail="Pair this device first")
+    return {"devices":chat.devices(set(chat_clients)),"self":device}
+
 @app.post("/api/sentinel/events")
 async def sentinel_ingest(payload: dict, authorization: str | None = Header(default=None)):
     authorize_sentinel(authorization)
@@ -198,3 +213,41 @@ async def websocket_endpoint(ws: WebSocket):
         pass
     finally:
         clients.discard(ws)
+
+@app.websocket("/ws/chat")
+async def chat_websocket(ws: WebSocket, device_id: str, token: str):
+    device=chat.authenticate(token)
+    if not device or device["id"] != device_id:
+        await ws.close(code=4401,reason="Pairing required"); return
+    await ws.accept()
+    chat_clients[device_id]=ws
+    async def send_presence():
+        payload={"type":"presence","devices":chat.devices(set(chat_clients))}
+        for peer in list(chat_clients.values()):
+            try: await peer.send_json(payload)
+            except Exception: pass
+    try:
+        await ws.send_json({"type":"welcome","self":device,"devices":chat.devices(set(chat_clients))})
+        await send_presence()
+        while True:
+            msg=await ws.receive_json()
+            if not isinstance(msg,dict): continue
+            if msg.get("type")=="message":
+                target=str(msg.get("to",""))
+                body=str(msg.get("text",""))[:10000]
+                if not body.strip(): continue
+                packet={"type":"message","from":device_id,"from_name":device["name"],
+                        "to":target,"text":body,"ts":time.time()}
+                peer=chat_clients.get(target)
+                if peer:
+                    await peer.send_json(packet)
+                    await ws.send_json({"type":"sent","to":target,"ts":packet["ts"]})
+                else:
+                    await ws.send_json({"type":"error","message":"Recipient is offline"})
+            elif msg.get("type")=="ping":
+                await ws.send_json({"type":"pong","ts":time.time()})
+    except WebSocketDisconnect:
+        pass
+    finally:
+        if chat_clients.get(device_id) is ws: chat_clients.pop(device_id,None)
+        await send_presence()
