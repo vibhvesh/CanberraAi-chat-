@@ -21,6 +21,7 @@ def connect():
     db.execute("CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts DESC)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_events_host_ts ON events(host, ts DESC)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_events_category_ts ON events(category, ts DESC)")
+    db.execute("DELETE FROM events WHERE ts < ?", (time.time() - RETENTION_DAYS * 86400,))
     return db
 
 def ingest(items):
