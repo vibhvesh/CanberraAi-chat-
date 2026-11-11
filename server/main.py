@@ -14,6 +14,7 @@ DATA = Path(os.getenv("CBRIDGE_DATA_DIR", "/var/lib/cbridge"))
 FILES = DATA / "files"
 FILES.mkdir(parents=True, exist_ok=True)
 TOKEN = os.getenv("CBRIDGE_TOKEN", "")
+SENTINEL_AGENT_TOKEN = os.getenv("SENTINEL_AGENT_TOKEN", TOKEN)
 MAX_UPLOAD = int(os.getenv("CBRIDGE_MAX_UPLOAD", str(100 * 1024 * 1024)))
 app = FastAPI(title="CanberraAI Chat + Sentinel", version="0.2.0")
 clients = set()
@@ -23,6 +24,11 @@ def authorize(value):
     supplied = (value or "").removeprefix("Bearer ").strip()
     if not TOKEN or not hmac.compare_digest(supplied, TOKEN):
         raise HTTPException(status_code=401, detail="Invalid access token")
+
+def authorize_sentinel(value):
+    supplied = (value or "").removeprefix("Bearer ").strip()
+    if not SENTINEL_AGENT_TOKEN or not hmac.compare_digest(supplied, SENTINEL_AGENT_TOKEN):
+        raise HTTPException(status_code=401, detail="Invalid Sentinel agent token")
 
 def safe_name(value):
     name = Path(value or "upload.bin").name
@@ -83,7 +89,7 @@ async def delete(name: str, authorization: str | None = Header(default=None)):
 
 @app.post("/api/sentinel/events")
 async def sentinel_ingest(payload: dict, authorization: str | None = Header(default=None)):
-    authorize(authorization)
+    authorize_sentinel(authorization)
     events = payload.get("events", []) if isinstance(payload, dict) else []
     if not isinstance(events, list) or len(events) > 100:
         raise HTTPException(status_code=400, detail="Send an events array with at most 100 entries")
