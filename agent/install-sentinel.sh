@@ -14,7 +14,7 @@ if [[ -z "$SERVER" || -z "$TOKEN" ]]; then
  echo "Usage: sudo bash install-sentinel.sh --server https://YOUR-HOST --token YOUR_TOKEN"; exit 2
 fi
 apt-get update
-apt-get install -y python3 python3-venv
+apt-get install -y python3 python3-venv curl
 mkdir -p /opt/canberra-sentinel
 curl -fsSL https://raw.githubusercontent.com/vibhvesh/CanberraAi-chat-/main/agent/sentinel-agent.py -o /opt/canberra-sentinel/sentinel-agent.py
 python3 -m venv /opt/canberra-sentinel/venv
