@@ -1,0 +1,30 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m compileall -q server agent
+      - run: python -m pip install -r requirements.txt
+      - run: python - <<'PY'
+        from server.sentinel import ingest, query_events, stats
+        from pathlib import Path
+        import os, tempfile
+        import server.sentinel as s
+        with tempfile.TemporaryDirectory() as d:
+            s.DATA = Path(d)
+            s.DB = Path(d) / "test.sqlite3"
+            result = ingest([{"host":"ci-host","category":"SYSTEM","label":"CI_TEST","summary":"test","details":{"ok":True}}])
+            assert len(result) == 1
+            assert query_events(10)[0]["host"] == "ci-host"
+            assert stats()["retention_days"] == 90
+        print("Sentinel smoke test passed")
+        PY
