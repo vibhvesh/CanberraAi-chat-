@@ -7,7 +7,7 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 SKIP_PARTS = ("/proc/", "/sys/", "/dev/", "/run/", "/var/cache/", "/var/log/journal/",
-              "/var/lib/docker/", "/var/lib/containerd/", "/var/lib/cbridge/", "/var/lib/apt/", "/var/lib/dpkg/", "/var/lib/systemd/")
+              "/var/lib/docker/", "/var/lib/containerd/", "/var/lib/cbridge/", "/var/lib/apt/", "/var/lib/dpkg/", "/var/lib/systemd/", "/var/lib/snapd/", "/var/lib/containers/", "/var/lib/kubelet/")
 SYSTEM_ROOTS = ("/etc", "/usr", "/bin", "/sbin", "/lib", "/opt", "/var")
 PACKAGE_LOGS = ("/var/log/dpkg.log", "/var/log/apt/history.log")
 
@@ -85,12 +85,15 @@ class Sentinel:
         current=set()
         try:conns=psutil.net_connections(kind="inet")
         except Exception:return
-        listeners={c.laddr.port: c.laddr.ip for c in conns if c.status==psutil.CONN_LISTEN and c.laddr}
+        listeners={}
+        for item in conns:
+            if item.status==psutil.CONN_LISTEN and item.laddr:
+                listeners.setdefault(item.laddr.port,set()).add(item.laddr.ip)
         for c in conns:
             if not c.laddr or not c.raddr:continue
             lip,lport=c.laddr.ip,c.laddr.port;rip,rport=c.raddr.ip,c.raddr.port
-            listener_ip=listeners.get(lport)
-            direction="INBOUND" if listener_ip in (lip,"0.0.0.0","::") else "OUTBOUND"
+            listener_ips=listeners.get(lport,set())
+            direction="INBOUND" if any(addr in (lip,"0.0.0.0","::") for addr in listener_ips) else "OUTBOUND"
             key=(c.pid,lip,lport,rip,rport,c.status,direction);current.add(key)
             if key not in self.last_connections:
                 try:
