@@ -7,7 +7,7 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 SKIP_PARTS = ("/proc/", "/sys/", "/dev/", "/run/", "/var/cache/", "/var/log/journal/",
-              "/var/lib/docker/", "/var/lib/containerd/", "/var/lib/cbridge/")
+              "/var/lib/docker/", "/var/lib/containerd/", "/var/lib/cbridge/", "/var/lib/apt/", "/var/lib/dpkg/", "/var/lib/systemd/")
 SYSTEM_ROOTS = ("/etc", "/usr", "/bin", "/sbin", "/lib", "/opt", "/var")
 PACKAGE_LOGS = ("/var/log/dpkg.log", "/var/log/apt/history.log")
 
@@ -85,11 +85,12 @@ class Sentinel:
         current=set()
         try:conns=psutil.net_connections(kind="inet")
         except Exception:return
-        listeners={(c.laddr.ip,c.laddr.port) for c in conns if c.status==psutil.CONN_LISTEN and c.laddr}
+        listeners={c.laddr.port: c.laddr.ip for c in conns if c.status==psutil.CONN_LISTEN and c.laddr}
         for c in conns:
             if not c.laddr or not c.raddr:continue
             lip,lport=c.laddr.ip,c.laddr.port;rip,rport=c.raddr.ip,c.raddr.port
-            direction="INBOUND" if (lip,lport) in listeners else "OUTBOUND"
+            listener_ip=listeners.get(lport)
+            direction="INBOUND" if listener_ip in (lip,"0.0.0.0","::") else "OUTBOUND"
             key=(c.pid,lip,lport,rip,rport,c.status,direction);current.add(key)
             if key not in self.last_connections:
                 try:
@@ -106,7 +107,11 @@ class Sentinel:
     def scan_packages(self):
         for path in PACKAGE_LOGS:
             try:
-                size=os.path.getsize(path);offset=self.log_offsets.get(path,0)
+                size=os.path.getsize(path)
+                if path not in self.log_offsets:
+                    self.log_offsets[path]=size
+                    continue
+                offset=self.log_offsets[path]
                 if size<offset:offset=0
                 with open(path,errors="replace") as f:f.seek(offset);lines=f.readlines();self.log_offsets[path]=f.tell()
                 for line in lines[-100:]:
