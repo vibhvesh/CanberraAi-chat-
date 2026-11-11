@@ -21,13 +21,17 @@ python3 -m venv "$APP/.venv"
 "$APP/.venv/bin/pip" install -r "$APP/requirements.txt"
 if [[ ! -f "$ENV_FILE" ]]; then
   TOKEN=$(python3 -c 'import secrets;print(secrets.token_urlsafe(32))')
-  printf 'CBRIDGE_TOKEN=%s\nCBRIDGE_DATA_DIR=%s\nSENTINEL_RETENTION_DAYS=90\n' "$TOKEN" "$DATA" > "$ENV_FILE"
+  AGENT_TOKEN=$(python3 -c 'import secrets;print(secrets.token_urlsafe(32))')
+  printf 'CBRIDGE_TOKEN=%s\nCBRIDGE_DATA_DIR=%s\nSENTINEL_RETENTION_DAYS=90\nSENTINEL_AGENT_TOKEN=%s\n' "$TOKEN" "$DATA" "$AGENT_TOKEN" > "$ENV_FILE"
   chmod 600 "$ENV_FILE"
-  echo "SAVE THIS ACCESS TOKEN:"
+  echo "SAVE THIS DASHBOARD ACCESS TOKEN:"
   echo "$TOKEN"
 else
   grep -q '^SENTINEL_RETENTION_DAYS=' "$ENV_FILE" || echo 'SENTINEL_RETENTION_DAYS=90' >> "$ENV_FILE"
-  echo "Existing access token retained."
+  if ! grep -q '^SENTINEL_AGENT_TOKEN=' "$ENV_FILE"; then
+    echo "SENTINEL_AGENT_TOKEN=$(python3 -c 'import secrets;print(secrets.token_urlsafe(32))')" >> "$ENV_FILE"
+  fi
+  echo "Existing dashboard token retained."
 fi
 cat > "$SERVICE" <<EOF
 [Unit]
@@ -55,7 +59,7 @@ WorkingDirectory=$APP
 EnvironmentFile=$ENV_FILE
 Environment=SENTINEL_SERVER=http://127.0.0.1:8765
 Environment=SENTINEL_PATHS=/etc,/usr/local,/usr/bin,/usr/sbin,/usr/lib/systemd/system,/opt,/var/lib,/home,/media,/mnt
-ExecStart=$APP/.venv/bin/python $APP/agent/sentinel-agent.py --server ${SENTINEL_SERVER} --token ${CBRIDGE_TOKEN} --paths ${SENTINEL_PATHS}
+ExecStart=$APP/.venv/bin/python $APP/agent/sentinel-agent.py --server \${SENTINEL_SERVER} --token \${SENTINEL_AGENT_TOKEN} --paths \${SENTINEL_PATHS}
 Restart=always
 RestartSec=5
 User=root
@@ -68,17 +72,18 @@ EOF
 cat > /usr/local/bin/cbridge <<'EOF'
 #!/usr/bin/env bash
 set -e
-case "${1:-status}" in
+case "\${1:-status}" in
  status) systemctl status cbridge --no-pager;;
- start|stop|restart) systemctl "${1}" cbridge;;
+ start|stop|restart) systemctl "\${1}" cbridge;;
  logs) journalctl -u cbridge -f;;
  sentinel-status) systemctl status canberra-sentinel --no-pager;;
  sentinel-logs) journalctl -u canberra-sentinel -f;;
  sentinel-restart) systemctl restart canberra-sentinel;;
  token) sed -n 's/^CBRIDGE_TOKEN=//p' /etc/cbridge.env;;
+ sentinel-token) sed -n 's/^SENTINEL_AGENT_TOKEN=//p' /etc/cbridge.env;;
  update) git -C /opt/canberraai-chat pull --ff-only; /opt/canberraai-chat/.venv/bin/pip install -r /opt/canberraai-chat/requirements.txt; systemctl restart cbridge canberra-sentinel;;
  uninstall) systemctl disable --now canberra-sentinel cbridge || true; rm -f /etc/systemd/system/cbridge.service /etc/systemd/system/canberra-sentinel.service /usr/local/bin/cbridge; systemctl daemon-reload; echo "Data retained in /var/lib/cbridge and config in /etc/cbridge.env.";;
- *) echo "Usage: cbridge {status|start|stop|restart|logs|sentinel-status|sentinel-logs|sentinel-restart|token|update|uninstall}";exit 2;;
+ *) echo "Usage: cbridge {status|start|stop|restart|logs|sentinel-status|sentinel-logs|sentinel-restart|token|sentinel-token|update|uninstall}";exit 2;;
 esac
 EOF
 chmod 755 /usr/local/bin/cbridge
@@ -87,5 +92,7 @@ systemctl enable --now cbridge
 systemctl enable --now canberra-sentinel
 echo "CanberraAI Chat + Sentinel installed."
 echo "Open http://YOUR_SERVER_IP:8765"
-echo "Commands: cbridge status | logs | sentinel-status | sentinel-logs | token | update"
+echo "Commands: cbridge status | logs | sentinel-status | sentinel-logs | token | sentinel-token | update"
+echo "Sentinel agent token for enrolling other hosts:"
+sed -n 's/^SENTINEL_AGENT_TOKEN=//p' "$ENV_FILE"
 echo "For public internet use, configure HTTPS before sending sensitive data."
