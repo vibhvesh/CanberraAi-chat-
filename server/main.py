@@ -4,8 +4,9 @@ import os
 import secrets
 from pathlib import Path
 
-from fastapi import FastAPI, File, Header, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile, WebSocket, WebSocketDisconnect, Query
 from fastapi.responses import HTMLResponse, FileResponse
+from server.sentinel import ingest as ingest_sentinel, query_events, stats as sentinel_stats
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / "web"
@@ -14,7 +15,7 @@ FILES = DATA / "files"
 FILES.mkdir(parents=True, exist_ok=True)
 TOKEN = os.getenv("CBRIDGE_TOKEN", "")
 MAX_UPLOAD = int(os.getenv("CBRIDGE_MAX_UPLOAD", str(100 * 1024 * 1024)))
-app = FastAPI(title="CanberraAI Chat", version="0.1.0")
+app = FastAPI(title="CanberraAI Chat + Sentinel", version="0.2.0")
 clients = set()
 latest = {"type": "clipboard", "text": "", "source": "server"}
 
@@ -34,7 +35,7 @@ async def index():
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "app": "CanberraAI Chat"}
+    return {"status": "ok", "app": "CanberraAI Chat + Sentinel"}
 
 @app.get("/api/files")
 async def list_files(authorization: str | None = Header(default=None)):
@@ -79,6 +80,28 @@ async def delete(name: str, authorization: str | None = Header(default=None)):
     authorize(authorization)
     get_file(name).unlink()
     return {"deleted": True}
+
+@app.post("/api/sentinel/events")
+async def sentinel_ingest(payload: dict, authorization: str | None = Header(default=None)):
+    authorize(authorization)
+    events = payload.get("events", []) if isinstance(payload, dict) else []
+    if not isinstance(events, list) or len(events) > 100:
+        raise HTTPException(status_code=400, detail="Send an events array with at most 100 entries")
+    accepted = ingest_sentinel(events)
+    return {"accepted": len(accepted)}
+
+@app.get("/api/sentinel/events")
+async def sentinel_event_list(authorization: str | None = Header(default=None),
+                              limit: int = Query(default=100, ge=1, le=500),
+                              category: str | None = None, host: str | None = None,
+                              q: str | None = None, since: float | None = None):
+    authorize(authorization)
+    return {"events": query_events(limit, category, host, q, since)}
+
+@app.get("/api/sentinel/stats")
+async def sentinel_summary(authorization: str | None = Header(default=None)):
+    authorize(authorization)
+    return sentinel_stats()
 
 async def broadcast(message, sender=None):
     stale = []
