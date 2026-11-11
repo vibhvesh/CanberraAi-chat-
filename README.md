@@ -103,3 +103,13 @@ revocable by removing that device from `/var/lib/cbridge/chat.sqlite3`.
 Chat MVP supports online presence and live text messages between paired
 browser/Linux clients. File-transfer storage APIs are a separate feature and
 are not yet wired into this chat interface/client.
+
+### Automatic connected-device discovery
+
+Paired devices automatically appear in the browser and terminal client when
+they establish their chat WebSocket connection. Presence updates are pushed
+when devices connect/disconnect; the server sends a heartbeat ping every
+20 seconds and the dashboard refreshes its view every 10 seconds. Use
+`cbridge-chat users` in a future client release or the web device list to
+see the current online peers. Only devices that have paired with the shared
+pairing password can join the device chat.
