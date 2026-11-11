@@ -22,7 +22,8 @@ python3 -m venv "$APP/.venv"
 if [[ ! -f "$ENV_FILE" ]]; then
   TOKEN=$(python3 -c 'import secrets;print(secrets.token_urlsafe(32))')
   AGENT_TOKEN=$(python3 -c 'import secrets;print(secrets.token_urlsafe(32))')
-  printf 'CBRIDGE_TOKEN=%s\nCBRIDGE_DATA_DIR=%s\nSENTINEL_RETENTION_DAYS=90\nSENTINEL_AGENT_TOKEN=%s\n' "$TOKEN" "$DATA" "$AGENT_TOKEN" > "$ENV_FILE"
+  FILE_KEY=$(python3 -c 'import secrets;print(secrets.token_hex(32))')
+  printf 'CBRIDGE_TOKEN=%s\nCBRIDGE_DATA_DIR=%s\nSENTINEL_RETENTION_DAYS=90\nSENTINEL_AGENT_TOKEN=%s\nCBRIDGE_FILE_KEY=%s\n' "$TOKEN" "$DATA" "$AGENT_TOKEN" "$FILE_KEY" > "$ENV_FILE"
   chmod 600 "$ENV_FILE"
   echo "SAVE THIS DASHBOARD ACCESS TOKEN:"
   echo "$TOKEN"
@@ -30,6 +31,9 @@ else
   grep -q '^SENTINEL_RETENTION_DAYS=' "$ENV_FILE" || echo 'SENTINEL_RETENTION_DAYS=90' >> "$ENV_FILE"
   if ! grep -q '^SENTINEL_AGENT_TOKEN=' "$ENV_FILE"; then
     echo "SENTINEL_AGENT_TOKEN=$(python3 -c 'import secrets;print(secrets.token_urlsafe(32))')" >> "$ENV_FILE"
+  fi
+  if ! grep -q '^CBRIDGE_FILE_KEY=' "$ENV_FILE"; then
+    echo "CBRIDGE_FILE_KEY=$(python3 -c 'import secrets;print(secrets.token_hex(32))')" >> "$ENV_FILE"
   fi
   echo "Existing dashboard token retained."
 fi
