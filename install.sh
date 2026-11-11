@@ -91,6 +91,12 @@ case "\${1:-status}" in
 esac
 EOF
 chmod 755 /usr/local/bin/cbridge
+
+cat > /usr/local/bin/cbridge-chat <<'EOF'
+#!/usr/bin/env bash
+exec /opt/canberraai-chat/.venv/bin/python /opt/canberraai-chat/agent/cbridge-chat.py "$@"
+EOF
+chmod 755 /usr/local/bin/cbridge-chat
 systemctl daemon-reload
 systemctl enable cbridge canberra-sentinel
 systemctl restart cbridge
