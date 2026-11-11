@@ -4,3 +4,4 @@ python-multipart>=0.0.9
 websockets>=12,<16
 psutil>=6,<8
 watchdog>=4,<7
+cryptography>=43,<47
