@@ -2,3 +2,5 @@ fastapi>=0.115,<1
 uvicorn[standard]>=0.30,<1
 python-multipart>=0.0.9
 websockets>=12,<16
+psutil>=6,<8
+watchdog>=4,<7
