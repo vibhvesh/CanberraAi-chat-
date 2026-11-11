@@ -88,8 +88,9 @@ esac
 EOF
 chmod 755 /usr/local/bin/cbridge
 systemctl daemon-reload
-systemctl enable --now cbridge
-systemctl enable --now canberra-sentinel
+systemctl enable cbridge canberra-sentinel
+systemctl restart cbridge
+systemctl restart canberra-sentinel
 echo "CanberraAI Chat + Sentinel installed."
 echo "Open http://YOUR_SERVER_IP:8765"
 echo "Commands: cbridge status | logs | sentinel-status | sentinel-logs | token | sentinel-token | update"
