@@ -113,3 +113,14 @@ when devices connect/disconnect; the server sends a heartbeat ping every
 `cbridge-chat users` in a future client release or the web device list to
 see the current online peers. Only devices that have paired with the shared
 pairing password can join the device chat.
+
+### Browser Push-to-Talk
+
+After pairing a browser device in the Chat & Files dashboard, select an online
+peer in **Push-to-Talk**, press and hold **HOLD TO TALK**, then release to stop.
+Voice uses WebRTC peer-to-peer media; the CanberraAI server relays signaling.
+Microphone access requires HTTPS (or localhost). The current client uses a
+public STUN server; some NAT/firewall combinations require a TURN relay for
+reliable connectivity. Configure a TURN service before relying on this across
+restrictive networks. This initial browser PTT implementation is not yet a
+multi-party radio conference.
