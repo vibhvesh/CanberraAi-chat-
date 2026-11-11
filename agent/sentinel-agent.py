@@ -7,7 +7,7 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 SKIP_PARTS = ("/proc/", "/sys/", "/dev/", "/run/", "/var/cache/", "/var/log/journal/",
-              "/var/lib/docker/", "/var/lib/containerd/", "/var/lib/cbridge/files/")
+              "/var/lib/docker/", "/var/lib/containerd/", "/var/lib/cbridge/")
 SYSTEM_ROOTS = ("/etc", "/usr", "/bin", "/sbin", "/lib", "/opt", "/var")
 PACKAGE_LOGS = ("/var/log/dpkg.log", "/var/log/apt/history.log")
 
