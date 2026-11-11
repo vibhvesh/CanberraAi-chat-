@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile, WebSocket, WebSocketDisconnect, Query
 from fastapi.responses import HTMLResponse, FileResponse
 from server.sentinel import ingest as ingest_sentinel, query_events, stats as sentinel_stats
+from server import transfers
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / "web"
@@ -86,6 +87,61 @@ async def delete(name: str, authorization: str | None = Header(default=None)):
     authorize(authorization)
     get_file(name).unlink()
     return {"deleted": True}
+
+@app.post("/api/transfers")
+async def transfer_create(payload: dict, authorization: str | None = Header(default=None)):
+    authorize(authorization)
+    try:
+        return transfers.create(str(payload.get("filename", "upload.bin")),
+                                int(payload.get("size", -1)),
+                                str(payload.get("sender", "browser")),
+                                str(payload.get("recipient", "")))
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+@app.put("/api/transfers/{transfer_id}/chunks/{index}")
+async def transfer_chunk(transfer_id: str, index: int, file: UploadFile = File(...),
+                         authorization: str | None = Header(default=None)):
+    authorize(authorization)
+    try:
+        data = await file.read(transfers.CHUNK_SIZE + 1)
+        return transfers.put_chunk(transfer_id, index, data)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+@app.post("/api/transfers/{transfer_id}/complete")
+async def transfer_complete(transfer_id: str, authorization: str | None = Header(default=None)):
+    authorize(authorization)
+    try:
+        return transfers.complete(transfer_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except (ValueError, OSError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+@app.get("/api/transfers")
+async def transfer_list(authorization: str | None = Header(default=None)):
+    authorize(authorization)
+    return {"transfers": transfers.listing()}
+
+@app.get("/api/transfers/{transfer_id}/download")
+async def transfer_download(transfer_id: str, authorization: str | None = Header(default=None)):
+    authorize(authorization)
+    try:
+        filename, data, digest = transfers.read_file(transfer_id)
+        from fastapi.responses import Response
+        return Response(content=data, media_type="application/octet-stream",
+                        headers={"Content-Disposition": f'attachment; filename="{filename}"',
+                                 "X-Content-SHA256": digest})
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+@app.delete("/api/transfers/{transfer_id}")
+async def transfer_delete(transfer_id: str, authorization: str | None = Header(default=None)):
+    authorize(authorization)
+    return {"deleted": transfers.remove(transfer_id)}
 
 @app.post("/api/sentinel/events")
 async def sentinel_ingest(payload: dict, authorization: str | None = Header(default=None)):
