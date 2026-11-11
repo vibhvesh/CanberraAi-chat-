@@ -38,7 +38,7 @@ class FileEvents(FileSystemEventHandler):
     def __init__(self,emit):
         self.emit=emit; self.recent={}; self.lock=threading.Lock()
     def on_any_event(self,event):
-        if event.is_directory:return
+        if event.is_directory or event.event_type not in ("created","modified","deleted","moved"):return
         paths=[getattr(event,"src_path",None)]
         if event.event_type=="moved":paths.append(getattr(event,"dest_path",None))
         now=time.time()
