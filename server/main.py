@@ -21,6 +21,7 @@ MAX_UPLOAD = int(os.getenv("CBRIDGE_MAX_UPLOAD", str(100 * 1024 * 1024)))
 app = FastAPI(title="CanberraAI Chat + Sentinel", version="0.2.0")
 clients = set()
 chat_clients = {}
+chat_last_seen = {}
 latest = {"type": "clipboard", "text": "", "source": "server"}
 
 def authorize(value):
@@ -156,7 +157,7 @@ async def chat_pair(payload: dict):
 async def chat_devices(authorization: str | None = Header(default=None)):
     device=chat.authenticate((authorization or "").removeprefix("Bearer ").strip())
     if not device: raise HTTPException(status_code=401,detail="Pair this device first")
-    return {"devices":chat.devices(set(chat_clients)),"self":device}
+    return {"devices":chat.devices(set(chat_clients)),"self":device,"online_count":len(chat_clients)}
 
 @app.post("/api/sentinel/events")
 async def sentinel_ingest(payload: dict, authorization: str | None = Header(default=None)):
@@ -221,8 +222,9 @@ async def chat_websocket(ws: WebSocket, device_id: str, token: str):
         await ws.close(code=4401,reason="Pairing required"); return
     await ws.accept()
     chat_clients[device_id]=ws
+    chat_last_seen[device_id]=time.time()
     async def send_presence():
-        payload={"type":"presence","devices":chat.devices(set(chat_clients))}
+        payload={"type":"presence","devices":chat.devices(set(chat_clients)),"online_count":len(chat_clients),"updated":time.time()}
         for peer in list(chat_clients.values()):
             try: await peer.send_json(payload)
             except Exception: pass
@@ -230,7 +232,13 @@ async def chat_websocket(ws: WebSocket, device_id: str, token: str):
         await ws.send_json({"type":"welcome","self":device,"devices":chat.devices(set(chat_clients))})
         await send_presence()
         while True:
-            msg=await ws.receive_json()
+            try:
+                msg=await asyncio.wait_for(ws.receive_json(), timeout=20)
+            except asyncio.TimeoutError:
+                chat_last_seen[device_id]=time.time()
+                await ws.send_json({"type":"ping","ts":time.time()})
+                continue
+            chat_last_seen[device_id]=time.time()
             if not isinstance(msg,dict): continue
             if msg.get("type")=="message":
                 target=str(msg.get("to",""))
@@ -249,5 +257,7 @@ async def chat_websocket(ws: WebSocket, device_id: str, token: str):
     except WebSocketDisconnect:
         pass
     finally:
-        if chat_clients.get(device_id) is ws: chat_clients.pop(device_id,None)
+        if chat_clients.get(device_id) is ws:
+            chat_clients.pop(device_id,None)
+            chat_last_seen.pop(device_id,None)
         await send_presence()
