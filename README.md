@@ -48,7 +48,7 @@ The agent connects outbound to the central server. No inbound port is needed on 
 - **Installations**: apt/dpkg install, upgrade, remove and purge log entries.
 - **Host health**: agent heartbeats and watched-path inventory.
 
-This is metadata monitoring, not full packet capture. It does not collect packet payloads, passwords, keystrokes, browser history or file contents. Filesystem monitoring is best-effort; events can be missed while the agent is stopped or if Linux watch limits are exhausted. Inbound/outbound labels are inferred from socket endpoints and should be treated as indicators, not definitive attribution. Some process/network details may be unavailable without root privileges.
+This is metadata monitoring, not full packet capture or byte-volume accounting. Network sockets are sampled every 15 seconds, so very short-lived connections can be missed. It does not collect packet payloads, passwords, keystrokes, browser history or file contents. Filesystem monitoring is best-effort; events can be missed while the agent is stopped or if Linux watch limits are exhausted. Inbound/outbound labels are inferred from socket endpoints and should be treated as indicators, not definitive attribution. Some process/network details may be unavailable without root privileges.
 
 ## Commands
 
