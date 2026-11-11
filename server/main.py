@@ -252,6 +252,15 @@ async def chat_websocket(ws: WebSocket, device_id: str, token: str):
                     await ws.send_json({"type":"sent","to":target,"ts":packet["ts"]})
                 else:
                     await ws.send_json({"type":"error","message":"Recipient is offline"})
+            elif msg.get("type") in ("rtc-offer","rtc-answer","rtc-ice","rtc-hangup"):
+                target=str(msg.get("to",""))
+                peer=chat_clients.get(target)
+                if not peer or target==device_id:
+                    await ws.send_json({"type":"rtc-error","message":"Selected device is offline"})
+                    continue
+                payload={"type":msg["type"],"from":device_id,"from_name":device["name"],
+                         "to":target,"payload":msg.get("payload")}
+                await peer.send_json(payload)
             elif msg.get("type")=="ping":
                 await ws.send_json({"type":"pong","ts":time.time()})
     except WebSocketDisconnect:
