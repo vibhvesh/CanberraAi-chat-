@@ -79,3 +79,27 @@ CBRIDGE_TOKEN=dev-token SENTINEL_AGENT_TOKEN=agent-dev-token CBRIDGE_DATA_DIR=./
 ```
 
 MIT licensed.
+
+## Device chat (shared-password pairing)
+
+The web dashboard now includes a **Device Chat** panel. Linux clients use the
+same pairing password and receive a device-specific token stored in
+`~/.config/cbridge-chat.json` (mode 0600).
+
+On each Linux machine, after installing/updating the server:
+
+```bash
+cbridge-chat pair --server https://YOUR-DOMAIN --name Desktop-A
+cbridge-chat connect
+```
+
+The default shared pairing password is `C1nb3rr1`. Set
+`CBRIDGE_CHAT_PASSWORD` in `/etc/cbridge.env` to change it, then restart
+`cbridge`. Do not expose the default password on a public server: anyone
+who knows it can pair a device. Restrict pairing to a VPN/firewall or change
+the password before enabling public access. Device tokens are individual,
+revocable by removing that device from `/var/lib/cbridge/chat.sqlite3`.
+
+Chat MVP supports online presence and live text messages between paired
+browser/Linux clients. File-transfer storage APIs are a separate feature and
+are not yet wired into this chat interface/client.
