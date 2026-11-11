@@ -23,9 +23,9 @@ def classify_path(path):
     p=os.path.abspath(path)
     if p.startswith(("/media/","/mnt/")): return "EXTERNAL_STORAGE"
     if p=="/home" or p.startswith("/home/"): return "USER_FILE"
-    if any(p==root or p.startswith(root+"/") for root in SYSTEM_ROOTS): return "SYSTEM_FILE"
     if p.startswith(("/tmp/","/var/tmp/")): return "TEMPORARY_FILE"
     if p.startswith("/var/lib/"): return "APPLICATION_DATA"
+    if any(p==root or p.startswith(root+"/") for root in SYSTEM_ROOTS): return "SYSTEM_FILE"
     return "OTHER_FILE"
 
 def send_batch(url,token,events):
