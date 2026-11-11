@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-SERVER="" TOKEN="" PATHS="/etc,/usr/local,/opt,/var/lib,/home,/media,/mnt"
+SERVER="" TOKEN="" PATHS="/etc,/usr/local,/usr/bin,/usr/sbin,/usr/lib/systemd/system,/opt,/var/lib,/home,/media,/mnt"
 while [[ $# -gt 0 ]]; do
  case "$1" in
   --server) SERVER="$2"; shift 2;;
